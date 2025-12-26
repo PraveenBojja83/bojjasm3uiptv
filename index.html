@@ -33,7 +33,7 @@
         <div class="modal-content">
           <h4>Add New Playlist</h4>
           <label for="new-url" class="sr-only">Playlist URL</label>
-          <input id="new-url" type="text" placeholder="Enter M3U URL">
+          <input id="new-url" type="text" placeholder="Enter M3U URL (e.g. https://iptv-org.github.io/iptv/index.m3u)">
           <div class="modal-buttons">
             <button id="save-btn">Save</button>
             <button id="cancel-btn">Cancel</button>
@@ -55,9 +55,7 @@
     </div>
   </div>
 
-  <!-- JavaScript remains exactly the same -->
   <script>
-    // ... (same JavaScript as before - no changes needed)
     const playlistSelect = document.getElementById('playlist-select');
     const addBtn = document.getElementById('add-btn');
     const addModal = document.getElementById('add-modal');
@@ -74,7 +72,9 @@
     let channels = [];
     let playlists = JSON.parse(localStorage.getItem('m3u-playlists')) || [];
 
+    // Load playlists from storage
     function loadPlaylists() {
+      playlistSelect.innerHTML = '<option value="">Select Playlist</option>';
       playlists.forEach((playlist, index) => {
         const option = document.createElement('option');
         option.value = index;
@@ -83,10 +83,12 @@
       });
     }
 
+    // Save playlists to storage
     function savePlaylists() {
       localStorage.setItem('m3u-playlists', JSON.stringify(playlists));
     }
 
+    // Parse M3U playlist
     function parseM3U(m3uText) {
       const lines = m3uText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       const result = [];
@@ -111,6 +113,7 @@
       return result;
     }
 
+    // Render channels list
     function renderChannels(list) {
       channelsEl.innerHTML = '';
       if (!list.length) {
@@ -123,21 +126,24 @@
         div.className = 'channel';
         div.dataset.index = index;
         div.innerHTML = ch.group ? `<strong>${ch.group}</strong><br>${ch.name}` : ch.name;
-        div.onclick = () => playChannel(index);
+        div.addEventListener('click', (e) => playChannel(index, e));
         channelsEl.appendChild(div);
       });
     }
 
-    function playChannel(index) {
+    // Play selected channel
+    function playChannel(index, event) {
       const ch = channels[index];
       if (!ch) return;
 
+      // Update active channel highlight
       document.querySelectorAll('.channel').forEach(el => el.classList.remove('active'));
       event.currentTarget.classList.add('active');
 
       channelInfoEl.textContent = ch.name;
       const src = ch.url;
 
+      // Destroy previous HLS instance
       if (hls) {
         hls.destroy();
         hls = null;
@@ -147,26 +153,40 @@
         hls = new Hls();
         hls.loadSource(src);
         hls.attachMedia(videoEl);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => videoEl.play().catch(() => {}));
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          videoEl.play().catch(() => {});
+        });
       } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS support (Safari)
         videoEl.src = src;
-        videoEl.addEventListener('loadedmetadata', () => videoEl.play().catch(() => {}));
+        videoEl.addEventListener('loadedmetadata', () => {
+          videoEl.play().catch(() => {});
+        });
       }
     }
 
+    // Load selected playlist
     async function loadPlaylist() {
       const selectedIndex = playlistSelect.value;
       if (!selectedIndex) {
         statusEl.textContent = 'Select a playlist first';
+        statusEl.className = 'status error';
         return;
       }
 
-      const playlist = playlists[selectedIndex];
+      const playlist = playlists[parseInt(selectedIndex)];
+      
+      // Use CORS proxy for production
+      let fetchUrl = playlist.url;
+      if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' && location.hostname !== '127.0.0.1') {
+        fetchUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(playlist.url);
+      }
+      
       statusEl.textContent = 'Loading...';
       statusEl.className = 'status loading';
 
       try {
-        const res = await fetch(playlist.url);
+        const res = await fetch(fetchUrl);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
         channels = parseM3U(text);
@@ -174,26 +194,30 @@
         statusEl.textContent = `Loaded ${channels.length} channels from "${playlist.name}"`;
         statusEl.className = 'status success';
       } catch (err) {
+        console.error('Load error:', err);
         statusEl.textContent = 'Error: ' + err.message;
         statusEl.className = 'status error';
       }
     }
 
+    // Show add playlist modal
     function addPlaylist() {
       addModal.style.display = 'flex';
       newUrlInput.focus();
     }
 
+    // Save new playlist
     function saveNewPlaylist() {
       const url = newUrlInput.value.trim();
-      if (!url) return;
+      if (!url) {
+        newUrlInput.focus();
+        return;
+      }
 
       const name = url.split('/').pop().replace('.m3u', '').replace('.m3u8', '') || `Playlist ${playlists.length + 1}`;
       
       playlists.push({ name, url });
       savePlaylists();
-      
-      playlistSelect.innerHTML = '<option value="">Select Playlist</option>';
       loadPlaylists();
       
       newUrlInput.value = '';
@@ -202,6 +226,7 @@
       statusEl.className = 'status success';
     }
 
+    // Event listeners
     addBtn.addEventListener('click', addPlaylist);
     saveBtn.addEventListener('click', saveNewPlaylist);
     cancelBtn.addEventListener('click', () => {
@@ -214,6 +239,15 @@
       if (e.key === 'Enter') saveNewPlaylist();
     });
 
+    // Close modal on outside click
+    addModal.addEventListener('click', (e) => {
+      if (e.target === addModal) {
+        addModal.style.display = 'none';
+        newUrlInput.value = '';
+      }
+    });
+
+    // Initialize
     loadPlaylists();
   </script>
 </body>
