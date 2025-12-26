@@ -20,7 +20,7 @@
   <!-- Fixed Left Sidebar -->
   <div id="sidebar">
     <div id="header">
-      <!-- Dropdown + Add Button -->
+      <!-- Playlist dropdown + Add button -->
       <div class="playlist-selector">
         <select id="playlist-select" aria-label="Select M3U playlist">
           <option value="">Select Playlist</option>
@@ -33,7 +33,10 @@
         <div class="modal-content">
           <h4>Add New Playlist</h4>
           <label for="new-url" class="sr-only">Playlist URL</label>
-          <input id="new-url" type="text" placeholder="Enter M3U URL (e.g. https://iptv-org.github.io/iptv/index.m3u)">
+          <input
+            id="new-url"
+            type="text"
+            placeholder="Enter M3U URL (e.g. https://iptv-org.github.io/iptv/index.m3u)">
           <div class="modal-buttons">
             <button id="save-btn">Save</button>
             <button id="cancel-btn">Cancel</button>
@@ -44,6 +47,7 @@
       <button id="load-btn">Load Selected</button>
       <div id="status"></div>
     </div>
+
     <div id="channels">Select a playlist to load channels</div>
   </div>
 
@@ -72,7 +76,7 @@
     let channels = [];
     let playlists = JSON.parse(localStorage.getItem('m3u-playlists')) || [];
 
-    // Load playlists from storage
+    // Load playlists into dropdown
     function loadPlaylists() {
       playlistSelect.innerHTML = '<option value="">Select Playlist</option>';
       playlists.forEach((playlist, index) => {
@@ -83,12 +87,12 @@
       });
     }
 
-    // Save playlists to storage
+    // Save playlists to localStorage
     function savePlaylists() {
       localStorage.setItem('m3u-playlists', JSON.stringify(playlists));
     }
 
-    // Parse M3U playlist
+    // Parse M3U text to channel list
     function parseM3U(m3uText) {
       const lines = m3uText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       const result = [];
@@ -96,6 +100,7 @@
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+
         if (line.startsWith('#EXTINF')) {
           currentInfo = { name: 'Unknown', url: '', group: '' };
           const commaIndex = line.indexOf(',');
@@ -113,7 +118,7 @@
       return result;
     }
 
-    // Render channels list
+    // Render channels in left pane
     function renderChannels(list) {
       channelsEl.innerHTML = '';
       if (!list.length) {
@@ -136,7 +141,7 @@
       const ch = channels[index];
       if (!ch) return;
 
-      // Update active channel highlight
+      // Highlight active channel
       document.querySelectorAll('.channel').forEach(el => el.classList.remove('active'));
       event.currentTarget.classList.add('active');
 
@@ -157,7 +162,7 @@
           videoEl.play().catch(() => {});
         });
       } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
-        // Native HLS support (Safari)
+        // Safari native HLS
         videoEl.src = src;
         videoEl.addEventListener('loadedmetadata', () => {
           videoEl.play().catch(() => {});
@@ -165,7 +170,7 @@
       }
     }
 
-    // Load selected playlist
+    // Load playlist (with CORS-safe fetch for production)
     async function loadPlaylist() {
       const selectedIndex = playlistSelect.value;
       if (!selectedIndex) {
@@ -174,19 +179,24 @@
         return;
       }
 
-      const playlist = playlists[parseInt(selectedIndex)];
-      
-      // Use CORS proxy for production
+      const playlist = playlists[parseInt(selectedIndex, 10)];
+
+      // Direct in local, proxy in production
       let fetchUrl = playlist.url;
-      if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' && location.hostname !== '127.0.0.1') {
-        fetchUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(playlist.url);
+      if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        // Use cors.sh as CORS proxy in production [web:47][web:53]
+        fetchUrl = 'https://proxy.cors.sh/' + playlist.url;
       }
-      
+
       statusEl.textContent = 'Loading...';
       statusEl.className = 'status loading';
 
       try {
-        const res = await fetch(fetchUrl);
+        const res = await fetch(fetchUrl, {
+          headers: {
+            'x-cors-api-key': 'test' // public test key from cors.sh docs [web:53]
+          }
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
         channels = parseM3U(text);
@@ -200,13 +210,13 @@
       }
     }
 
-    // Show add playlist modal
+    // Open add-playlist modal
     function addPlaylist() {
       addModal.style.display = 'flex';
       newUrlInput.focus();
     }
 
-    // Save new playlist
+    // Save new playlist from modal
     function saveNewPlaylist() {
       const url = newUrlInput.value.trim();
       if (!url) {
@@ -214,7 +224,9 @@
         return;
       }
 
-      const name = url.split('/').pop().replace('.m3u', '').replace('.m3u8', '') || `Playlist ${playlists.length + 1}`;
+      const name =
+        url.split('/').pop().replace('.m3u', '').replace('.m3u8', '') ||
+        `Playlist ${playlists.length + 1}`;
       
       playlists.push({ name, url });
       savePlaylists();
@@ -234,12 +246,12 @@
       newUrlInput.value = '';
     });
     loadBtn.addEventListener('click', loadPlaylist);
-    
+
     newUrlInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') saveNewPlaylist();
     });
 
-    // Close modal on outside click
+    // Close modal when clicking outside content
     addModal.addEventListener('click', (e) => {
       if (e.target === addModal) {
         addModal.style.display = 'none';
@@ -247,7 +259,7 @@
       }
     });
 
-    // Initialize
+    // Init on load
     loadPlaylists();
   </script>
 </body>
