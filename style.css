@@ -234,11 +234,13 @@ body {
     z-index: 800;
   }
   
+
   #channels {
-    max-height: 200px;
+    max-height: 140px;       /* less height for list */
     overflow-y: auto;
+    padding: 6px 10px;       /* tighter padding */
   }
-  
+
   /* Compact mobile buttons */
   .playlist-selector { gap: 10px; }
   #playlist-select { font-size: 16px; padding: 14px; }
@@ -252,34 +254,41 @@ body {
     font-size: 16px;
     margin-top: 10px;
   }
-  
-  /* Fullscreen video */
+
+  /* Channel title just above video */
   #channel-info {
-    padding: 15px 20px;
-    font-size: 18px;
-    position: sticky;
-    top: 0;
+    padding: 8px 12px;       /* smaller */
+    font-size: 16px;
     background: #111;
     z-index: 700;
+    position: relative;      /* no sticky jump */
+    margin-bottom: 0;        /* remove extra gap */
   }
-  
+
+  /* Smaller fixed video area so it starts higher */
   #video-container {
-    min-height: 50vh;
+    min-height: 220px;       /* was 50vh; reduce */
+    height: 220px;
   }
-  
+
+  #video {
+    height: 100%;
+  }
+
   /* Mobile modal */
   .modal-content {
     width: 95%;
     padding: 25px;
     margin: 20px;
   }
-  
+
   /* Channel list mobile */
   .channel {
-    padding: 15px;
+    padding: 12px;
     font-size: 15px;
   }
 }
+
 
 @media (max-width: 480px) {
   #app-header { padding: 0 12px; }
