@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M3U IPTV Web Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- TOP HEADER BAR -->
+  <header id="app-header">
+    <div class="logo">
+      <img src="logo2-rbg.png" alt="M3U Player Logo" id="logo-img">
+    </div>
+    <div class="app-name">Bojja's Playfy M3U IPTV Player</div>
+    <div class="header-spacer"></div>
+  </header>
+
+  <!-- Fixed Left Sidebar -->
+  <div id="sidebar">
+    <div id="header">
+      <!-- Dropdown + Add Button -->
+      <div class="playlist-selector">
+        <select id="playlist-select" aria-label="Select M3U playlist">
+          <option value="">Select Playlist</option>
+        </select>
+        <button id="add-btn" title="Add new playlist" aria-label="Add new playlist">+</button>
+      </div>
+      
+      <!-- Add URL Modal -->
+      <div id="add-modal" class="modal">
+        <div class="modal-content">
+          <h4>Add New Playlist</h4>
+          <label for="new-url" class="sr-only">Playlist URL</label>
+          <input id="new-url" type="text" placeholder="Enter M3U URL">
+          <div class="modal-buttons">
+            <button id="save-btn">Save</button>
+            <button id="cancel-btn">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <button id="load-btn">Load Selected</button>
+      <div id="status"></div>
+    </div>
+    <div id="channels">Select a playlist to load channels</div>
+  </div>
+
+  <!-- Main Content Area -->
+  <div id="main">
+    <div id="channel-info">Select a channel to play</div>
+    <div id="video-container">
+      <video id="video" controls></video>
+    </div>
+  </div>
+
+  <!-- JavaScript remains exactly the same -->
+  <script>
+    // ... (same JavaScript as before - no changes needed)
+    const playlistSelect = document.getElementById('playlist-select');
+    const addBtn = document.getElementById('add-btn');
+    const addModal = document.getElementById('add-modal');
+    const newUrlInput = document.getElementById('new-url');
+    const saveBtn = document.getElementById('save-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const loadBtn = document.getElementById('load-btn');
+    const statusEl = document.getElementById('status');
+    const channelsEl = document.getElementById('channels');
+    const videoEl = document.getElementById('video');
+    const channelInfoEl = document.getElementById('channel-info');
+
+    let hls;
+    let channels = [];
+    let playlists = JSON.parse(localStorage.getItem('m3u-playlists')) || [];
+
+    function loadPlaylists() {
+      playlists.forEach((playlist, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = playlist.name || `Playlist ${index + 1}`;
+        playlistSelect.appendChild(option);
+      });
+    }
+
+    function savePlaylists() {
+      localStorage.setItem('m3u-playlists', JSON.stringify(playlists));
+    }
+
+    function parseM3U(m3uText) {
+      const lines = m3uText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const result = [];
+      let currentInfo = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.startsWith('#EXTINF')) {
+          currentInfo = { name: 'Unknown', url: '', group: '' };
+          const commaIndex = line.indexOf(',');
+          if (commaIndex !== -1 && commaIndex < line.length - 1) {
+            currentInfo.name = line.substring(commaIndex + 1).trim();
+          }
+          const groupMatch = line.match(/group-title="([^"]*)"/i);
+          if (groupMatch) currentInfo.group = groupMatch[1];
+        } else if (!line.startsWith('#') && currentInfo) {
+          currentInfo.url = line;
+          result.push(currentInfo);
+          currentInfo = null;
+        }
+      }
+      return result;
+    }
+
+    function renderChannels(list) {
+      channelsEl.innerHTML = '';
+      if (!list.length) {
+        channelsEl.innerHTML = '<div class="no-channels">No channels found</div>';
+        return;
+      }
+
+      list.forEach((ch, index) => {
+        const div = document.createElement('div');
+        div.className = 'channel';
+        div.dataset.index = index;
+        div.innerHTML = ch.group ? `<strong>${ch.group}</strong><br>${ch.name}` : ch.name;
+        div.onclick = () => playChannel(index);
+        channelsEl.appendChild(div);
+      });
+    }
+
+    function playChannel(index) {
+      const ch = channels[index];
+      if (!ch) return;
+
+      document.querySelectorAll('.channel').forEach(el => el.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+
+      channelInfoEl.textContent = ch.name;
+      const src = ch.url;
+
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+
+      if (Hls.isSupported()) {
+        hls = new Hls();
+        hls.loadSource(src);
+        hls.attachMedia(videoEl);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => videoEl.play().catch(() => {}));
+      } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+        videoEl.src = src;
+        videoEl.addEventListener('loadedmetadata', () => videoEl.play().catch(() => {}));
+      }
+    }
+
+    async function loadPlaylist() {
+      const selectedIndex = playlistSelect.value;
+      if (!selectedIndex) {
+        statusEl.textContent = 'Select a playlist first';
+        return;
+      }
+
+      const playlist = playlists[selectedIndex];
+      statusEl.textContent = 'Loading...';
+      statusEl.className = 'status loading';
+
+      try {
+        const res = await fetch(playlist.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        channels = parseM3U(text);
+        renderChannels(channels);
+        statusEl.textContent = `Loaded ${channels.length} channels from "${playlist.name}"`;
+        statusEl.className = 'status success';
+      } catch (err) {
+        statusEl.textContent = 'Error: ' + err.message;
+        statusEl.className = 'status error';
+      }
+    }
+
+    function addPlaylist() {
+      addModal.style.display = 'flex';
+      newUrlInput.focus();
+    }
+
+    function saveNewPlaylist() {
+      const url = newUrlInput.value.trim();
+      if (!url) return;
+
+      const name = url.split('/').pop().replace('.m3u', '').replace('.m3u8', '') || `Playlist ${playlists.length + 1}`;
+      
+      playlists.push({ name, url });
+      savePlaylists();
+      
+      playlistSelect.innerHTML = '<option value="">Select Playlist</option>';
+      loadPlaylists();
+      
+      newUrlInput.value = '';
+      addModal.style.display = 'none';
+      statusEl.textContent = `Added: ${name}`;
+      statusEl.className = 'status success';
+    }
+
+    addBtn.addEventListener('click', addPlaylist);
+    saveBtn.addEventListener('click', saveNewPlaylist);
+    cancelBtn.addEventListener('click', () => {
+      addModal.style.display = 'none';
+      newUrlInput.value = '';
+    });
+    loadBtn.addEventListener('click', loadPlaylist);
+    
+    newUrlInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') saveNewPlaylist();
+    });
+
+    loadPlaylists();
+  </script>
+</body>
+</html>
