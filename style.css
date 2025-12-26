@@ -25,17 +25,38 @@ body {
 }
 
 .logo { flex: 0 0 auto; }
-#logo-img { height: 40px; width: auto; border-radius: 8px; }
+/* Blinking / pulse effect for header logo */
+#logo-img {
+  height: 40px;
+  width: auto;
+  border-radius: 8px;
+  animation: blink 3.0s infinite;
+  }
+  
+  @keyframes blink {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+  }
+
+
 .app-name {
   flex: 1;
   text-align: center;
   font-size: 20px;
+  margin-left: 40px;
   font-weight: 700;
-  color: #fff;
+  color: #484747;
   text-shadow: 0 1px 2px rgba(0,0,0,0.5);
   letter-spacing: 1px;
 }
-.header-spacer { flex: 0 0 auto; width: 300px; }
+
 
 /* Fixed Left Sidebar (Desktop) */
 #sidebar { 
@@ -177,20 +198,22 @@ body {
   body { overflow: auto; }
   
   #app-header {
-    padding: 0 15px;
-    height: 55px;
+    flex-direction: row;
+    height: 100px;
   }
   #logo-img { height: 35px; }
   .app-name {
-    font-size: 16px;
+    width:max-content;
+    font-size: 1px;
     letter-spacing: 0.5px;
+    display: flex;
   }
   
   /* Mobile: Full-width controls at top */
   #sidebar {
     position: relative !important;
     width: 100% !important;
-    margin-top: 0 !important;
+    margin-top: 50px !important;
     height: auto !important;
     border-right: none;
     border-bottom: 2px solid #333;
